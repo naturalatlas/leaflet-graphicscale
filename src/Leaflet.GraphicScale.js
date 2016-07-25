@@ -5,40 +5,36 @@ L.Control.GraphicScale = L.Control.extend({
         minUnitWidth: 30,
         maxUnitsWidth: 240,
         fill: false,
+        units: 'metric', // "standard", "metric"
         showSubunits: false,
         doubleLine: false,
-        labelPlacement: 'auto' 
+        labelPlacement: 'auto',
+
+        // advanced: customize the subdivision
+        // (format: [upperBound, [...divs], subdivision])
+        divisionTable: [
+            [0.5, [0, 0.25, 0.5], 0],
+            [1, [0, 0.25, 0.5, 1], 0],
+            [1.5, [0, 0.5, 1, 1.5], 0],
+            [2, [0, 1, 2], 1],
+            [3, [0, 1, 2, 3], 0],
+            [5, [0, 2.5, 5], 1],
+            [10, [0, 5, 10], 1],
+            [20, [0, 10, 20], 5],
+            [50, [0, 25, 50], 0],
+            [75, [0, 75], 0],
+            [100, [0, 50, 100], 0],
+            [200, [0, 100, 200], 0],
+            [250, [0, 250], 0],
+            [500, [0, 250, 500], 0],
+            [1000, [0, 500, 1000], 0],
+            [2500, [0, 1000, 2500], 0],
+            [5000, [0, 2500, 5000], 0],
+        ]
     },
 
     onAdd: function (map) {
         this._map = map;
-
-        //number of units on the scale, by order of preference
-        this._possibleUnitsNum = [3, 5, 2, 4];
-        this._possibleUnitsNumLen = this._possibleUnitsNum.length;
-
-        //how to divide a full unit, by order of preference
-        this._possibleDivisions = [1, 0.5, 0.25, 0.2];
-        this._possibleDivisionsLen = this._possibleDivisions.length;
-        
-        this._possibleDivisionsSub = {
-            1: {
-                num: 2,
-                division:0.5
-            },
-            0.5: {
-                num: 5,
-                division: 0.1
-            },
-            0.25: {
-                num: 5,
-                division: 0.05
-            },
-            0.2: {
-                num: 2,
-                division: 0.1
-            }
-        };
 
         this._scaleInner = this._buildScale();
         this._scale = this._addScale(this._scaleInner);
@@ -55,12 +51,16 @@ L.Control.GraphicScale = L.Control.extend({
     },
 
     _addScale: function (scaleInner) {
-
         var scale = L.DomUtil.create('div');
         scale.className = 'leaflet-control-graphicscale';
         scale.appendChild( scaleInner );
 
         return scale;
+    },
+
+    _setUnits: function (units) {
+      this.options.units = units;
+      this._update();
     },
 
     _setStyle: function (options) {
@@ -106,7 +106,6 @@ L.Control.GraphicScale = L.Control.extend({
             var subunit = this._buildDivision( i%2 === 1 );
             subunits.appendChild(subunit);
             this._subunits.unshift(subunit);
-
         }
 
         this._zeroLbl = L.DomUtil.create('div', 'label zeroLabel');
@@ -149,202 +148,115 @@ L.Control.GraphicScale = L.Control.extend({
             dist = halfWorldMeters * (bounds.getNorthEast().lng - bounds.getSouthWest().lng) / 180,
             size = this._map.getSize();
 
+        var metersToPixels = size.x / dist; // px per meter
         if (size.x > 0) {
-            this._updateScale(dist, this.options);
+            var subdivisionScale;
+            var scale = this._computeScale(dist, metersToPixels, this.options.maxUnitsWidth, this.options.minUnitWidth);
+            if (scale && scale.subdivideValue) {
+                subdivisionScale = this._computeScale(scale.subdivideValueMeters + 1, metersToPixels, +Infinity, 10);
+            }
+            this._render(scale, subdivisionScale);
+        }
+    },
+
+    _computeScale: function(meters, metersToPixels, maxPixels, minUnitWidth) {
+        var units = 'm';
+        var milesInMeters = 1609.34;
+        var conversionFactor = 1; // meters to target unit
+        if (this.options.units === 'standard') {
+            units = 'ft';
+            conversionFactor = 3.28084; // ft
+            if (meters >= 1 * milesInMeters) {
+                conversionFactor /= 5280;
+                units = 'mi';
+            }
+        } else {
+            if (meters >= 1000) {
+                conversionFactor /= 1000;
+                units = 'km';
+            }
         }
 
+        // format: [upperBound, [...divs], subdivision]
+        var divisionTable = this.options.divisionTable;
 
-    },
+        var computeWithUnits = function(units, conversionFactor) {
+            var value = meters * conversionFactor;
+            // find one that yields minimum width, above min width
+            for (var i = 0, n = divisionTable.length; i < n; i++) {
+                var minPixels = divisionTable[i][1].length * minUnitWidth;
+                var targetValue = divisionTable[i][0];
+                if (targetValue > value) break;
+                var targetMeters = targetValue / conversionFactor;
+                var widthPx = targetMeters * metersToPixels;
+                if (widthPx < minPixels) continue;
+                if (widthPx > maxPixels) break;
 
-    _updateScale: function(maxMeters, options) {
-
-        var scale = this._getBestScale(maxMeters, options.minUnitWidth, options.maxUnitsWidth);
-
-        // this._render(scale.unit.unitPx, scale.numUnits, scale.unit.unitMeters);
-        this._render(scale);
-
-    },
-
-    _getBestScale: function(maxMeters, minUnitWidthPx, maxUnitsWidthPx) {
-
-        //favor full units (not 500, 25, etc)
-        //favor multiples in this order: [3, 5, 2, 4]
-        //units should have a minUnitWidth
-        //full scale width should be below maxUnitsWidth
-        //full scale width should be above minUnitsWidth ?
-
-        var possibleUnits = this._getPossibleUnits( maxMeters, minUnitWidthPx, this._map.getSize().x );
-
-        var possibleScales = this._getPossibleScales(possibleUnits, maxUnitsWidthPx);
-
-        possibleScales.sort(function(scaleA, scaleB) {
-            return scaleB.score - scaleA.score;
-        });
-
-        var scale = possibleScales[0];
-        scale.subunits = this._getSubunits(scale);
-
-        return scale;
-    },
-
-    _getSubunits: function(scale) {
-        var subdivision = this._possibleDivisionsSub[scale.unit.unitDivision];
-
-        var subunit = {};
-        subunit.subunitDivision = subdivision.division;
-        subunit.subunitMeters = subdivision.division * (scale.unit.unitMeters / scale.unit.unitDivision);
-        subunit.subunitPx = subdivision.division * (scale.unit.unitPx / scale.unit.unitDivision);
-
-        var subunits = {
-            subunit: subunit,
-            numSubunits: subdivision.num,
-            total: subdivision.num * subunit.subunitMeters
-        };
-
-        return subunits;
-
-    },
-
-    _getPossibleScales: function(possibleUnits, maxUnitsWidthPx) {
-        var scales = [];
-        var minTotalWidthPx = Number.POSITIVE_INFINITY;
-        var fallbackScale;
-
-        for (var i = 0; i < this._possibleUnitsNumLen; i++) {
-            var numUnits = this._possibleUnitsNum[i];
-            var numUnitsScore = (this._possibleUnitsNumLen-i)*0.5;
-
-            for (var j = 0; j < possibleUnits.length; j++) {
-                var unit = possibleUnits[j];
-                var totalWidthPx = unit.unitPx * numUnits;
-
-                var scale = {
-                    unit: unit,
-                    totalWidthPx: totalWidthPx,
-                    numUnits: numUnits,
-                    score: 0
+                return {
+                    preset: i,
+                    units: units, // m, km, ft, mi
+                    pixels: widthPx,
+                    meters: targetMeters, // width in meters
+                    metersToPixels: metersToPixels, // conversion factor
+                    unitsToMeters: 1 / conversionFactor,
+                    divs: divisionTable[i][1],
+                    subdivideValue: divisionTable[i][2],
+                    subdivideValueMeters: divisionTable[i][2] / conversionFactor
                 };
-
-                //TODO: move score calculation  to a testable method
-                var totalWidthPxScore = 1-(maxUnitsWidthPx - totalWidthPx) / maxUnitsWidthPx;
-                totalWidthPxScore *= 3;
-
-                var score = unit.unitScore + numUnitsScore + totalWidthPxScore;
-
-                //penalty when unit / numUnits association looks weird
-                if (
-                    unit.unitDivision === 0.25 && numUnits === 3 ||
-                    unit.unitDivision === 0.5 && numUnits === 3 ||
-                    unit.unitDivision === 0.25 && numUnits === 5
-                    ) {
-                    score -= 2;
-                }
-
-                scale.score = score;
-
-
-
-                if (totalWidthPx < maxUnitsWidthPx) {
-                    scales.push(scale);
-                }
-
-                //keep a fallback scale in case totalWidthPx < maxUnitsWidthPx condition is never met
-                //(happens at very high zoom levels because we dont handle submeter units yet)
-                if (totalWidthPx<minTotalWidthPx) {
-                    minTotalWidthPx = totalWidthPx;
-                    fallbackScale = scale;
-                }
             }
-        }
-
-        if (!scales.length) scales.push(fallbackScale);
-
-        return scales;
-    },
-
-    /**
-    Returns a list of possible units whose widthPx would be < minUnitWidthPx
-    **/
-    _getPossibleUnits: function(maxMeters, minUnitWidthPx, mapWidthPx) {
-        var exp = (Math.floor(maxMeters) + '').length;
-
-        var unitMetersPow;
-        var units = [];
-
-        for (var i = exp; i > 0; i--) {
-            unitMetersPow = Math.pow(10, i);
-
-            for (var j = 0; j < this._possibleDivisionsLen; j++) {
-                var unitMeters = unitMetersPow * this._possibleDivisions[j];
-                var unitPx = mapWidthPx * (unitMeters/maxMeters);
-
-                if (unitPx < minUnitWidthPx) {
-                    return units;
-                }
-
-                units.push({
-                    unitMeters: unitMeters,
-                    unitPx: unitPx,
-                    unitDivision: this._possibleDivisions[j],
-                    unitScore: this._possibleDivisionsLen-j });
-
-            }
-        }
-
-        return units;
-    },
-
-    _render: function(scale) {
-        this._renderPart(scale.unit.unitPx, scale.unit.unitMeters, scale.numUnits, this._units, this._unitsLbls);
-        this._renderPart(scale.subunits.subunit.subunitPx, scale.subunits.subunit.subunitMeters, scale.subunits.numSubunits, this._subunits);
-
-        var subunitsDisplayUnit = this._getDisplayUnit(scale.subunits.total);
-        this._subunitsLbl.innerHTML = ''+ subunitsDisplayUnit.amount + subunitsDisplayUnit.unit;
-    },
-
-    _renderPart: function(px, meters, num, divisions, divisionsLbls) {
-
-        var displayUnit = this._getDisplayUnit(meters);
-
-        for (var i = 0; i < this._units.length; i++) {
-            var division = divisions[i];
-
-            if (i < num) {
-                division.style.width = px + 'px';
-                division.className = 'division';
-            } else {
-                division.style.width = 0;
-                division.className = 'division hidden';
-            }
-
-            if (!divisionsLbls) continue;
-
-            var lbl = divisionsLbls[i];
-            var lblClassNames = ['label', 'divisionLabel'];
-
-            if (i < num) {
-                var lblText = ( (i+1)*displayUnit.amount );
-
-                if (i === num-1) {
-                    lblText += displayUnit.unit;
-                    lblClassNames.push('labelLast');
-                } else {
-                    lblClassNames.push('labelSub');
-                }
-                lbl.innerHTML = lblText;
-            }
-
-            lbl.className = lblClassNames.join(' ');
-
-        }
-    },
-
-    _getDisplayUnit: function(meters) {
-        var displayUnit = (meters<1000) ? 'm' : 'km';
-        return {
-            unit: displayUnit,
-            amount: (displayUnit === 'km') ? meters / 1000 : meters
+            return null;
         };
+
+        var result = computeWithUnits(units, conversionFactor);
+        if (result) return result;
+
+        // rare: if we fail to find a good value, convert back to the base unit and try again
+        if (units === 'mi') return computeWithUnits('ft', conversionFactor * 5280);
+        if (units === 'km') return computeWithUnits('m', conversionFactor * 1000);
+
+        return null;
+    },
+
+    _render: function(scale, subdivisionScale) {
+        if (!scale) { this._scale.style.display = 'none'; return; }
+        this._scale.style.display = 'block';
+        this._renderUnits(scale, this._units, this._unitsLbls);
+        this._renderUnits(subdivisionScale, this._subunits, null);
+        this._subunitsLbl.innerHTML = subdivisionScale ? subdivisionScale.divs[subdivisionScale.divs.length - 1] + subdivisionScale.units : '';
+    },
+
+    _renderUnits: function(scale, elements, labelElements) {
+        var i, n, j;
+        var elementCount = elements.length;
+
+        if (scale) {
+            // render active divisions
+            var accumulatedWidth = 0;
+            for (i = 1, n = scale.divs.length; i < n; i++) {
+                var last = i === n - 1;
+                var j = i - 1; // dom index
+                var label = scale.divs[i] + (last ? scale.units : '');
+
+                // note: the bar distribution is not always uniform
+                var targetWidth = scale.divs[i] * scale.unitsToMeters * scale.metersToPixels;
+                var width = targetWidth - accumulatedWidth;
+                accumulatedWidth += width;
+
+                elements[j].className = 'division';
+                elements[j].style.width = width + 'px';
+                if (labelElements) {
+                    labelElements[j].className = 'label divisionLabel ' + (last ? 'labelLast' : 'labelSub');
+                    labelElements[j].innerHTML = label;
+                }
+            }
+        }
+
+        // hide trailing divisions no longer needed
+        var activeCount = scale ? Math.max(0, scale.divs.length - 1) : 0;
+        for (i = activeCount, n = this._units.length; i < n; i++) {
+            elements[i].style.width = 0;
+            elements[i].className = 'division hidden';
+        }
     }
 
 });

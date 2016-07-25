@@ -52,7 +52,7 @@ body {
     font-size: 30px;
 }
 
-.scaleText .choice {
+.scaleText .choice, .scaleText .unit {
     margin: 0 5px;
     cursor: pointer;
 }

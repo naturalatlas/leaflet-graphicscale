@@ -15,7 +15,7 @@ This plugin provides a more interesting alternative with more customizability.
 Yes, please. I haven't had the time to make proper tests but they would be much needed.
 Also I've heard that there are some parts on the globe where they don't use the metric system, so if you'd like to add your measurement system be my guest (furlongs, wiffles, smoots, miles... http://en.wikipedia.org/wiki/List_of_humorous_units_of_measurement)
 
-To run the demo locally (you'll need ```sass```): 
+To run the demo locally (you'll need ```sass```):
 ```
 npm run dev
 ```
@@ -23,7 +23,7 @@ npm run dev
 
 ## Getting started
 
-### Using minified files 
+### Using minified files
 
 ```
 <!DOCTYPE html>
@@ -54,7 +54,7 @@ See below for ```[options]```
 npm install -S leaflet-graphicscale
 ```
 
-SASS : 
+SASS :
 ```
 @import './node_modules/leaflet-graphicscale/src/Leaflet.GraphicScale.scss';
 ```
@@ -69,6 +69,10 @@ var graphicScale = L.control.graphicScale().addTo(map);
 
 
 ## Options
+
+### units: ```'metric'|'standard'```
+
+Default: metric
 
 ### fill: ```false|'fill'|'hollow'|'line'```
 
@@ -113,7 +117,7 @@ Default: 30. The minimum width of a scale unit.
 
 Default: 240. The maximum width of the scale without subunits.
 
-### labelPlacement: ```'auto'|'top'|'bottom'``` 
+### labelPlacement: ```'auto'|'top'|'bottom'```
 
 Default: auto. Display the distance label on top/on the bottom of the scale bar. If set to auto, labels will be placed on top when the scale control is on the bottom of the map, and on the bottom when the scale control is on the top of the map (```position``` parameter)
 
