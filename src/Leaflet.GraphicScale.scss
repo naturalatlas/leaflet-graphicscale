@@ -1,20 +1,29 @@
+// @see https://github.com/nerik/leaflet-graphicscale/blob/master/src/Leaflet.GraphicScale.scss
+
 @mixin leaflet-graphicscale-transition($transition-property, $transition-time, $method) {
-    -webkit-transition: $transition-property $transition-time $method;
-    -moz-transition: $transition-property $transition-time $method;
-    -ms-transition: $transition-property $transition-time $method;
-    -o-transition: $transition-property $transition-time $method;
-    transition: $transition-property $transition-time $method;
+	@if $transition-time {
+		-webkit-transition: $transition-property $transition-time $method;
+		-moz-transition: $transition-property $transition-time $method;
+		-ms-transition: $transition-property $transition-time $method;
+		-o-transition: $transition-property $transition-time $method;
+		transition: $transition-property $transition-time $method;
+	}
 }
 
-$lineHeight: 6px;
-$borderWidth: 1px;
-$color: #000;
-$fillLineHeight: 2px;
-$fillHollowPadding: 1px;
+$leaflet-scale-lineHeight: 6px;
+$leaflet-scale-borderWidth: 1px;
+$leaflet-scale-color: #000;
+$leaflet-scale-fillLineHeight: 2px;
+$leaflet-scale-fillHollowPadding: 1px;
+$leaflet-scale-transitionDuration: 0.5s; // can be `null`
+$leaflet-scale-fillHollowColor: null; // can be `null`
+$leaflet-scale-labelHaloColor: null; // can be `null`
+$leaflet-scale-labelOffset: 10px;
+$leaflet-scale-labelSize: inherit;
 
 .leaflet-control-graphicscale-inner {
-
 	margin: 6px 16px;
+	white-space: nowrap;
 
 	.units {
 		display: inline-block;
@@ -26,11 +35,20 @@ $fillHollowPadding: 1px;
 
 	.label {
 		width: 100px;
-	  	text-align: center;
-    	margin-bottom: 10px;
+		text-align: center;
+		margin-bottom: $leaflet-scale-labelOffset;
 		position: absolute;
-	  	opacity: 1;
-	  	@include leaflet-graphicscale-transition(opacity, .4s, linear);
+		opacity: 1;
+		font-size: $leaflet-scale-labelSize;
+		@if $leaflet-scale-labelHaloColor {
+			text-shadow:
+				0 0 2px $leaflet-scale-labelHaloColor,
+				0 0 2px $leaflet-scale-labelHaloColor,
+				0 0 2px $leaflet-scale-labelHaloColor,
+				0 0 2px $leaflet-scale-labelHaloColor,
+				0 0 2px $leaflet-scale-labelHaloColor;
+		}
+		@include leaflet-graphicscale-transition(opacity, $leaflet-scale-transitionDuration, linear);
 	}
 
 	//labels are on top
@@ -59,7 +77,7 @@ $fillHollowPadding: 1px;
 		display: inline-block;
 		position: relative;
 		width: 40px;
-		@include leaflet-graphicscale-transition(width, 0.4s, ease-in-out);
+		@include leaflet-graphicscale-transition(width, $leaflet-scale-transitionDuration, ease-in-out);
 
 		.line, .line2 {
 			border-style: solid;
@@ -72,18 +90,21 @@ $fillHollowPadding: 1px;
 		}
 
 		.line {
-			height: $lineHeight;
-			border-width: $borderWidth $borderWidth $borderWidth 0;
+			@if $leaflet-scale-fillHollowColor {
+				background: $leaflet-scale-fillHollowColor;
+			}
+			height: $leaflet-scale-lineHeight;
+			border-width: $leaflet-scale-borderWidth $leaflet-scale-borderWidth $leaflet-scale-borderWidth 0;
 		}
 
 	}
 
 	.units .division:first-child .line {
-		border-left-width: $borderWidth;
+		border-left-width: $leaflet-scale-borderWidth;
 	}
 
 	.subunits .division .line {
-		border-width: $borderWidth 0 $borderWidth $borderWidth;
+		border-width: $leaflet-scale-borderWidth 0 $leaflet-scale-borderWidth $leaflet-scale-borderWidth;
 	}
 
 	.fill {
@@ -99,17 +120,17 @@ $fillHollowPadding: 1px;
 	&.double {
 		.division {
 			.line2 {
-				height: $lineHeight;
-				border-width: 0 $borderWidth $borderWidth 0;
+				height: $leaflet-scale-lineHeight;
+				border-width: 0 $leaflet-scale-borderWidth $leaflet-scale-borderWidth 0;
 			}
 		}
 
 		.units .division:first-child .line2 {
-			border-left-width: $borderWidth;
+			border-left-width: $leaflet-scale-borderWidth;
 		}
 
 		.subunits .division .line2 {
-			border-width: 0 0 $borderWidth $borderWidth;
+			border-width: 0 0 $leaflet-scale-borderWidth $leaflet-scale-borderWidth;
 		}
 
 		.label {
@@ -120,7 +141,7 @@ $fillHollowPadding: 1px;
 
 	&.filled {
 		.fill {
-			background-color: $color;
+			background-color: $leaflet-scale-color;
 			position: absolute;
 			top: 0;
 			left: 0;
@@ -134,7 +155,7 @@ $fillHollowPadding: 1px;
 
 		@mixin leaflet-graphicscale-fill-line {
 			height: 2px;
-			top: $lineHeight/2 - $fillLineHeight/2;
+			top: $leaflet-scale-lineHeight/2 - $leaflet-scale-fillLineHeight/2;
 		}
 
 		.line .fill {
@@ -149,10 +170,10 @@ $fillHollowPadding: 1px;
 	&.filled-hollow {
 		.fill {
 			position: absolute;
-			top: $fillHollowPadding;
-			left: $fillHollowPadding;
-			right: $fillHollowPadding;
-			bottom: $fillHollowPadding;
+			top: $leaflet-scale-fillHollowPadding;
+			left: $leaflet-scale-fillHollowPadding;
+			right: $leaflet-scale-fillHollowPadding;
+			bottom: $leaflet-scale-fillHollowPadding;
 		}
 
 	}
@@ -170,5 +191,3 @@ $fillHollowPadding: 1px;
 		}
 	}
 }
-
-
